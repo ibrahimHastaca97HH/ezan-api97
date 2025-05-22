@@ -6,6 +6,7 @@ import unicodedata
 
 app = FastAPI()
 
+# Şehir ID veritabanı
 CITIES = {
     9146: "ADANA", 9158: "ADIYAMAN", 9167: "AFYONKARAHISAR", 9185: "AĞRI",
     9193: "AKSARAY", 9198: "AMASYA", 9206: "ANKARA", 9225: "ANTALYA",
@@ -30,17 +31,20 @@ CITIES = {
 }
 
 def normalize_string(string):
+    """Şehir adını normalize et (İ/ı sorunlarını ve Türkçe karakterleri kaldır)"""
     string = unicodedata.normalize("NFKD", string).encode("ASCII", "ignore").decode("utf-8")
     return string.upper().replace("İ", "I")
 
-def get_city_id(city_name):
+def get_city_id(city_name: str):
+    """Kullanıcının girdiği şehir adına göre city_id bul"""
     normalized = normalize_string(city_name)
     for k, v in CITIES.items():
         if normalize_string(v) == normalized:
             return k
     return None
 
-def fetch_prayer_times(city_id):
+def fetch_prayer_times(city_id: int):
+    """Diyanet sitesinden vakitleri çek"""
     url = f"https://namazvakitleri.diyanet.gov.tr/tr-TR/{city_id}"
     response = requests.get(url)
     soup = BeautifulSoup(response.text, "html.parser")
@@ -67,19 +71,19 @@ def fetch_prayer_times(city_id):
 
 @app.get("/")
 def root():
-    return {"message": "Ezan API çalışıyor"}
+    return {"message": "📿 Ezan Vakitleri API çalışıyor"}
 
 @app.get("/vakitler")
 def get_vakitler(city: str = Query(..., description="Şehir adı")):
     try:
         city_id = get_city_id(city)
         if not city_id:
-            return JSONResponse(status_code=404, content={"status": False, "error": "Şehir bulunamadı"})
+            return JSONResponse(status_code=404, content={"status": False, "error": "❌ Şehir bulunamadı"})
 
         data = fetch_prayer_times(city_id)
         if not data:
-            return JSONResponse(status_code=500, content={"status": False, "error": "Veri alınamadı"})
+            return JSONResponse(status_code=500, content={"status": False, "error": "❌ Veri alınamadı"})
 
-        return {"status": True, "data": data}
+        return {"status": True, "city": CITIES[city_id], "data": data}
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": False, "error": str(e)})
